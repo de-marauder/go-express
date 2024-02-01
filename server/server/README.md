@@ -1,8 +1,20 @@
+# go-Express
+
+This package contains an implementation of an HTTP web-server build from scratch (tcp) copying ExpressJS style.
+
+## Features
+- Request Logging
+- Routing: can parse route tokens (params) and query params from raw HTTP requests
+- JSON parsing
+- TCP Connection concurrency
+
+## Example Usage
+```go
 package main
 
 import (
 	"fmt"
-	"simple_socket/tcp_server_client/server/server"
+	"github.com/de-marauder/go-express/server/server"
 )
 
 const (
@@ -30,7 +42,6 @@ func main() {
 }
 
 // Define handlers //
-
 func handleRootRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
 	res.StatusCode = 200
 
@@ -78,3 +89,8 @@ func handlePutFooRoute(req *server.HTTPRequest, res *server.HTTPResponse) interf
 	res.Send("You just hit the " + req.Method + "  /foo route")
 	return 1
 }
+
+```
+
+# Author
+de-marauder [twitter](https://x.com/De_marauder), [linkedin](https://linkedin.com/in/obiajulu-ezike)
