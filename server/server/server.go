@@ -230,7 +230,7 @@ func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 	rMap, ok := s.routeMap[req.Method+"-"+req.Route]
 	setResHeaders(res)
 	if !ok {
-		// Extract params
+		// Try to extract params or fail
 		if !s.tryExtractParams(req, res) {	
 			res.StatusCode = 404
 			res.Send(fmt.Sprintln("Path ", req.Method, req.Route, "Not Found"))
@@ -403,7 +403,6 @@ func parseJsonToString(json map[string]string) string {
 		counter++
 	}
 	j += "}\""
-	fmt.Println(j)
 	return j
 }
 

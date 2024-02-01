@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"simple_socket/tcp_server_client/server/server"
+	"github.com/de-marauder/go-express/server/server"
+	// "simple_socket/tcp_server_client/server/server"
 )
 
 const (
@@ -20,7 +21,7 @@ func main() {
 	s.Get("/foo/:id", handleOneFooRoute)
 	s.Get("/foo", handleFooRoute)
 	s.Post("/foo", handlePostFooRoute)
-	s.Put("/foo", handleFooRoute)
+	s.Put("/foo", handlePutFooRoute)
 
 	s.Listen(host+":"+port, func () {
 		// Add some string outputs or
@@ -40,19 +41,16 @@ func handleRootRoute(req *server.HTTPRequest, res *server.HTTPResponse) interfac
 }
 
 func handleOneFooBarByIdRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
-	fmt.Println(req.Params)
 	res.StatusCode = 200
 	res.Send("You just hit the " + req.Method + "  /foo/:id/bar/:id2 route")
 	return 1
 }
 func handleOneFooBarRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
-	fmt.Println(req.Params)
 	res.StatusCode = 200
 	res.Send("You just hit the " + req.Method + "  /foo/:id/bar route")
 	return 1
 }
 func handleOneFooRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
-	fmt.Println(req.Params)
 	res.StatusCode = 200
 	res.Send("You just hit the " + req.Method + "  /foo/:id route")
 	return 1
