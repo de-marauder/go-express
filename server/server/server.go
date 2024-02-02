@@ -227,9 +227,7 @@ func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 	res := NewHTTPResponse()
 	res.Version = req.Version
 	res.conn = conn
-	fmt.Println("route map -> ", s.routeMap)
-	fmt.Println(req.Method)
-	fmt.Println(req.Route)
+	
 	rMap, ok := s.routeMap[req.Method+"-"+req.Route]
 	setResHeaders(res)
 	if !ok {
