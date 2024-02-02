@@ -10,15 +10,17 @@ import (
 // max connection buffer size
 const buf_size = 1024
 
+type NextFunction func()
+
 // Request handlers return an empty interface and require a pointer to request struct and pointer to response struct
-type HTTPRequestHandler func(req *HTTPRequest, res *HTTPResponse) interface{}
+type HTTPRequestHandler func(req *HTTPRequest, res *HTTPResponse, next NextFunction) interface{}
 
 // A map of the route to handler and method
 // Used for raute and method based lookups after registering handlers
 type routeMap map[string]routeMapValue
 type routeMapValue struct {
-	method  string
-	handler HTTPRequestHandler
+	method   string
+	handlers []HTTPRequestHandler
 }
 
 // Define a structure for our server
@@ -128,34 +130,34 @@ func (s *Server) Listen(addr string, cb func()) {
 }
 
 // HTTP Method handlers for registering routes and their corresponding handlers
-func (s *Server) Get(route string, handler HTTPRequestHandler) {
+func (s *Server) Get(route string, handlers ...HTTPRequestHandler) {
 	s.routeMap["GET-"+route] = routeMapValue{
-		method:  "GET",
-		handler: handler,
+		method:   "GET",
+		handlers: handlers,
 	}
 }
-func (s *Server) Post(route string, handler HTTPRequestHandler) {
+func (s *Server) Post(route string, handlers ...HTTPRequestHandler) {
 	s.routeMap["POST-"+route] = routeMapValue{
-		method:  "POST",
-		handler: handler,
+		method:   "POST",
+		handlers: handlers,
 	}
 }
-func (s *Server) Put(route string, handler HTTPRequestHandler) {
+func (s *Server) Put(route string, handlers ...HTTPRequestHandler) {
 	s.routeMap["PUT-"+route] = routeMapValue{
-		method:  "PUT",
-		handler: handler,
+		method:   "PUT",
+		handlers: handlers,
 	}
 }
-func (s *Server) Patch(route string, handler HTTPRequestHandler) {
+func (s *Server) Patch(route string, handlers ...HTTPRequestHandler) {
 	s.routeMap["PATCH-"+route] = routeMapValue{
-		method:  "PATCH",
-		handler: handler,
+		method:   "PATCH",
+		handlers: handlers,
 	}
 }
-func (s *Server) Delete(route string, handler HTTPRequestHandler) {
+func (s *Server) Delete(route string, handlers ...HTTPRequestHandler) {
 	s.routeMap["DELETE"+route] = routeMapValue{
-		method:  "DELETE",
-		handler: handler,
+		method:   "DELETE",
+		handlers: handlers,
 	}
 }
 
@@ -167,7 +169,6 @@ func (s *Server) start(cb func()) {
 	fmt.Println("TCP Server listening on", s.addr, "...")
 	go cb()
 	s.acceptLoop(s.listener)
-	fmt.Printf("Hey!\n")
 }
 
 // Create a while loop to accept all incoming connections on a listener
@@ -193,7 +194,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 	n, err := conn.Read(buf)
 	logError(err)
 	message := string(buf[:n])
-	log.Println("Connection from ", conn.RemoteAddr())
 	// fmt.Printf("%s\n", message)
 
 	// Respond
@@ -227,7 +227,8 @@ func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 	res := NewHTTPResponse()
 	res.Version = req.Version
 	res.conn = conn
-	
+	log.Println("Connection from ", conn.RemoteAddr(), "-", req.Method, "-", req.Route)
+
 	rMap, ok := s.routeMap[req.Method+"-"+req.Route]
 	setResHeaders(res)
 	if !ok {
@@ -237,7 +238,9 @@ func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 			res.Send(fmt.Sprintln("Path ", req.Method, req.Route, "Not Found"))
 		}
 	} else {
-		rMap.handler(req, res)
+		// rMap.handler(req, res)
+		e := runHandlers(req, res, rMap.handlers)
+		logError(e)
 	}
 }
 
@@ -253,11 +256,28 @@ func (s *Server) tryExtractParams(req *HTTPRequest, res *HTTPResponse) bool {
 		} else {
 			req.Params = params
 			rMp := s.routeMap[req.Method+"-"+match]
-			rMp.handler(req, res)
+
+			e := runHandlers(req, res, rMp.handlers)
+			logError(e)
 			return true
 		}
 	}
 	return false
+}
+
+// Handle control switching using a call to next when dealing with middlewares (multiple request handlers)
+func runHandlers(req *HTTPRequest, res *HTTPResponse, handlers []HTTPRequestHandler) error {
+	n := 0
+	var next NextFunction = func() {
+		n++
+	}
+	for i, h := range handlers {
+		if n != i {
+			return &Error{"Error in middleware chain. `next` not called in a middleware. Unable to continue"}
+		}
+		h(req, res, next)
+	}
+	return nil
 }
 
 // Compares requested route with registered route to see if they match
@@ -394,7 +414,7 @@ func parseBody(res *HTTPResponse) string {
 // Stringify JSON
 func parseJsonToString(json map[string]string) string {
 	var j string = "\"{"
-	fmt.Println(len(json))
+
 	counter := 1
 	for key, val := range json {
 		if counter == len(json) {

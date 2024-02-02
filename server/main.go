@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/de-marauder/go-express/server/server"
-	// "simple_socket/tcp_server_client/server/server"
+	"go-express/server"
+	// "github.com/de-marauder/go-express/server/server"
+	// "go-express/server/server"
 )
 
 const (
@@ -15,11 +16,11 @@ func main() {
 	s := server.NewHTTPServer()
 
 	// register handlers with param tokens and HTTP methods
-	s.Get("/", handleRootRoute)
+	s.Get("/", middleware, handleRootRoute)
+	s.Get("/foo", middleware2, handleFooRoute)
 	s.Get("/foo/:id/bar/:id2", handleOneFooBarByIdRoute)
 	s.Get("/foo/:id/bar", handleOneFooBarRoute)
 	s.Get("/foo/:id", handleOneFooRoute)
-	s.Get("/foo", handleFooRoute)
 	s.Post("/foo", handlePostFooRoute)
 	s.Put("/foo", handlePutFooRoute)
 
@@ -32,37 +33,59 @@ func main() {
 
 // Define handlers //
 
-func handleRootRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
-	res.StatusCode = 200
+func middleware(req *server.HTTPRequest, res *server.HTTPResponse, next server.NextFunction) interface{} {
+	type body struct {
+		id string
+	}
+	b := body{
+		id: "1",
+	}
+	req.Body = b
+	next()
+	return 1
+}
+func middleware2(req *server.HTTPRequest, res *server.HTTPResponse, next server.NextFunction) interface{} {
+	type body struct {
+		id string
+	}
+	b := body{
+		id: "2",
+	}
+	req.Body = b
+	next()
+	return 1
+}
 
+func handleRootRoute(req *server.HTTPRequest, res *server.HTTPResponse, next server.NextFunction) interface{} {
+	res.StatusCode = 200
 	// send response using res.Send()
 	res.Send("You just hit the " + req.Method + "  / route")
 	return 1
 }
 
-func handleOneFooBarByIdRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
+func handleOneFooBarByIdRoute(req *server.HTTPRequest, res *server.HTTPResponse, next server.NextFunction) interface{} {
 	res.StatusCode = 200
 	res.Send("You just hit the " + req.Method + "  /foo/:id/bar/:id2 route")
 	return 1
 }
-func handleOneFooBarRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
+func handleOneFooBarRoute(req *server.HTTPRequest, res *server.HTTPResponse, next server.NextFunction) interface{} {
 	res.StatusCode = 200
 	res.Send("You just hit the " + req.Method + "  /foo/:id/bar route")
 	return 1
 }
-func handleOneFooRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
+func handleOneFooRoute(req *server.HTTPRequest, res *server.HTTPResponse, next server.NextFunction) interface{} {
 	res.StatusCode = 200
 	res.Send("You just hit the " + req.Method + "  /foo/:id route")
 	return 1
 }
-func handleFooRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
+func handleFooRoute(req *server.HTTPRequest, res *server.HTTPResponse, next server.NextFunction) interface{} {
 	res.StatusCode = 200
 	res.Send("You just hit the " + req.Method + "  /foo route")
 	return 1
 }
 
 // Handle JSON response using res.Json
-func handlePostFooRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
+func handlePostFooRoute(req *server.HTTPRequest, res *server.HTTPResponse, next server.NextFunction) interface{} {
 	res.StatusCode = 200
 	type JsonMap map[string]string
 	data := make(JsonMap)
@@ -71,7 +94,7 @@ func handlePostFooRoute(req *server.HTTPRequest, res *server.HTTPResponse) inter
 	res.Json(data)
 	return 1
 }
-func handlePutFooRoute(req *server.HTTPRequest, res *server.HTTPResponse) interface{} {
+func handlePutFooRoute(req *server.HTTPRequest, res *server.HTTPResponse, next server.NextFunction) interface{} {
 	res.StatusCode = 200
 	res.Send("You just hit the " + req.Method + "  /foo route")
 	return 1
