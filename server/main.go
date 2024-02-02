@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/de-marauder/go-express/server/server"
-	// "simple_socket/tcp_server_client/server/server"
+	// "github.com/de-marauder/go-express/server/server"
+	"simple_socket/tcp_server_client/server/server"
 )
 
 const (
@@ -36,7 +36,7 @@ func handleRootRoute(req *server.HTTPRequest, res *server.HTTPResponse) interfac
 	res.StatusCode = 200
 
 	// send response using res.Send()
-	res.Send("You just hit the " + req.Method + "  /foo route")
+	res.Send("You just hit the " + req.Method + "  / route")
 	return 1
 }
 

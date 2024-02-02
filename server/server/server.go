@@ -74,6 +74,7 @@ func NewHTTPRequest() *HTTPRequest {
 }
 
 type statusMessage map[int]string
+
 var HTTPStatusCodeMap = statusMessage{
 	200: "OK",
 	201: "CREATED",
@@ -126,7 +127,7 @@ func (s *Server) Listen(addr string, cb func()) {
 	s.start(cb)
 }
 
-// HTTP Method handlers for registering routes and their corresponding handlers 
+// HTTP Method handlers for registering routes and their corresponding handlers
 func (s *Server) Get(route string, handler HTTPRequestHandler) {
 	s.routeMap["GET-"+route] = routeMapValue{
 		method:  "GET",
@@ -226,12 +227,14 @@ func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 	res := NewHTTPResponse()
 	res.Version = req.Version
 	res.conn = conn
-
+	fmt.Println("route map -> ", s.routeMap)
+	fmt.Println(req.Method)
+	fmt.Println(req.Route)
 	rMap, ok := s.routeMap[req.Method+"-"+req.Route]
 	setResHeaders(res)
 	if !ok {
 		// Try to extract params or fail
-		if !s.tryExtractParams(req, res) {	
+		if !s.tryExtractParams(req, res) {
 			res.StatusCode = 404
 			res.Send(fmt.Sprintln("Path ", req.Method, req.Route, "Not Found"))
 		}
@@ -241,22 +244,22 @@ func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 }
 
 // Handle param extraction when registered route elements are tokenized for dynamism
-func (s *Server) tryExtractParams (req *HTTPRequest, res *HTTPResponse) bool {
-		var params = make(Params)
-		for k := range s.routeMap {
-			r := strings.Split(k, "-")[1]
+func (s *Server) tryExtractParams(req *HTTPRequest, res *HTTPResponse) bool {
+	var params = make(Params)
+	for k := range s.routeMap {
+		r := strings.Split(k, "-")[1]
 
-			match, ok := performRoutePatternMatch(req.Route, r, params)
-			if !ok {
-				continue
-			} else {
-				req.Params = params
-				rMp := s.routeMap[req.Method+"-"+match]
-				rMp.handler(req, res)
-				return true
-			}
+		match, ok := performRoutePatternMatch(req.Route, r, params)
+		if !ok {
+			continue
+		} else {
+			req.Params = params
+			rMp := s.routeMap[req.Method+"-"+match]
+			rMp.handler(req, res)
+			return true
 		}
-		return false
+	}
+	return false
 }
 
 // Compares requested route with registered route to see if they match
@@ -340,8 +343,8 @@ func parseReqToStruct(message string) *HTTPRequest {
 
 	// Extract route and query
 	fullRouteSlice := strings.Split(fullRoute, "?")
+	route = fullRouteSlice[0]
 	if len(fullRouteSlice) == 2 {
-		route = fullRouteSlice[0]
 		if len(route) > 1 {
 			route = strings.TrimRight(route, "/")
 		}
@@ -386,6 +389,7 @@ func parseResponseStatusLine(res *HTTPResponse) string {
 // convert response body interface to string
 func parseBody(res *HTTPResponse) string {
 	body := fmt.Sprint(res.Body)
+	res.Headers["Content-Length"] = fmt.Sprint(len(body))
 	return body
 }
 
