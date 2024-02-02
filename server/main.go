@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	// "github.com/de-marauder/go-express/server/server"
-	"simple_socket/tcp_server_client/server/server"
+	"github.com/de-marauder/go-express/server/server"
+	// "simple_socket/tcp_server_client/server/server"
 )
 
 const (
