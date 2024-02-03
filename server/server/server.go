@@ -10,16 +10,19 @@ import (
 // max connection buffer size
 const buf_size = 1024
 
+var middlewares = [][]HTTPRequestHandler{}
+
 type NextFunction func()
 
 // Request handlers return an empty interface and require a pointer to request struct and pointer to response struct
-type HTTPRequestHandler func(req *HTTPRequest, res *HTTPResponse, next NextFunction) interface{}
+type HTTPRequestHandler func(req *HTTPRequest, res *HTTPResponse, next NextFunction)
 
 // A map of the route to handler and method
 // Used for raute and method based lookups after registering handlers
 type routeMap map[string]routeMapValue
 type routeMapValue struct {
 	method   string
+	midx     int
 	handlers []HTTPRequestHandler
 }
 
@@ -41,9 +44,14 @@ func NewHTTPServer() *Server {
 	}
 }
 
+type MiddlewareMethods interface {
+	Use(...HTTPRequestHandler)
+}
+
 // An interface to implement methods for the server struct in an ExpresJs fashion
 type ServerMethods interface {
 	Listen(string, func())
+	MiddlewareMethods
 	HTTPMethods
 }
 type HTTPMethods interface {
@@ -131,34 +139,54 @@ func (s *Server) Listen(addr string, cb func()) {
 
 // HTTP Method handlers for registering routes and their corresponding handlers
 func (s *Server) Get(route string, handlers ...HTTPRequestHandler) {
+	midx := len(middlewares)
+
 	s.routeMap["GET-"+route] = routeMapValue{
 		method:   "GET",
+		midx:     midx,
 		handlers: handlers,
 	}
 }
 func (s *Server) Post(route string, handlers ...HTTPRequestHandler) {
+	midx := len(middlewares)
+
 	s.routeMap["POST-"+route] = routeMapValue{
 		method:   "POST",
+		midx:     midx,
 		handlers: handlers,
 	}
 }
 func (s *Server) Put(route string, handlers ...HTTPRequestHandler) {
+	midx := len(middlewares)
+
 	s.routeMap["PUT-"+route] = routeMapValue{
 		method:   "PUT",
+		midx:     midx,
 		handlers: handlers,
 	}
 }
 func (s *Server) Patch(route string, handlers ...HTTPRequestHandler) {
+	midx := len(middlewares)
+
 	s.routeMap["PATCH-"+route] = routeMapValue{
 		method:   "PATCH",
+		midx:     midx,
 		handlers: handlers,
 	}
 }
 func (s *Server) Delete(route string, handlers ...HTTPRequestHandler) {
+	midx := len(middlewares)
+
 	s.routeMap["DELETE"+route] = routeMapValue{
 		method:   "DELETE",
+		midx:     midx,
 		handlers: handlers,
 	}
+}
+
+// register middleware that runs before calls it precedes
+func (s *Server) Use(middlewareHandlers ...HTTPRequestHandler) {
+	middlewares = append(middlewares, middlewareHandlers)
 }
 
 // Start a new tcp server that listens on the specified address
@@ -212,13 +240,6 @@ func isHTTPRequest(message string) bool {
 	return strings.Contains(scheme, "HTTP")
 }
 
-// Log Error and exit server
-func logError(err error) {
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
-
 // Parse and process request and provide response to client via connection
 func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 	// fmt.Println("--Request--")
@@ -239,7 +260,9 @@ func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 		}
 	} else {
 		// rMap.handler(req, res)
-		e := runHandlers(req, res, rMap.handlers)
+		// e := runHandlers(req, res, rMap.handlers)
+		allHandlers := concatenateAllHandlers(rMap)
+		e := runHandlers(req, res, allHandlers)
 		logError(e)
 	}
 }
@@ -248,20 +271,21 @@ func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 func (s *Server) tryExtractParams(req *HTTPRequest, res *HTTPResponse) bool {
 	var params = make(Params)
 	for k := range s.routeMap {
-		r := strings.Split(k, "-")[1]
 
-		match, ok := performRoutePatternMatch(req.Route, r, params)
+		match, ok := performRoutePatternMatch(req, k, params)
+
 		if !ok {
 			continue
 		} else {
 			req.Params = params
 			rMp := s.routeMap[req.Method+"-"+match]
-
-			e := runHandlers(req, res, rMp.handlers)
+			allHandlers := concatenateAllHandlers(rMp)
+			e := runHandlers(req, res, allHandlers)
 			logError(e)
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -278,168 +302,4 @@ func runHandlers(req *HTTPRequest, res *HTTPResponse, handlers []HTTPRequestHand
 		h(req, res, next)
 	}
 	return nil
-}
-
-// Compares requested route with registered route to see if they match
-func performRoutePatternMatch(reqR string, r string, p Params) (string, bool) {
-	reqRSl := strings.Split(reqR, "/")
-	rSl := strings.Split(r, "/")
-
-	if len(reqRSl) != len(rSl) {
-		return "", false
-	}
-
-	for i := range reqRSl {
-		vR, vr := reqRSl[i], rSl[i]
-		if isParamToken(vr) {
-			p[strings.TrimLeft(vr, ":")] = vR
-		} else if vR == vr {
-			continue
-		} else {
-			return "", false
-		}
-	}
-	return r, true
-}
-
-// Check if a route element is tokenized (i.e. prefixed with a ":")
-func isParamToken(s string) bool {
-	if s != "" {
-		return strings.Split(s, "")[0] == ":"
-	} else {
-		return false
-	}
-}
-
-// Set default response headers
-func setResHeaders(res *HTTPResponse) {
-	headers := make(map[string]string)
-	headers["Content-Type"] = "text/plain"
-	headers["Server"] = "go-express"
-	res.Headers = headers
-}
-
-// Convert HTTP request to a more usable sreuct form
-// Struct type is HTTPRequest
-func parseReqToStruct(message string) *HTTPRequest {
-	msgSlice := strings.Split(message, "\r")
-
-	var (
-		scheme    string
-		fullRoute string
-		route     string
-		query     Query
-		method    string
-		version   string
-		headers   Headers
-		body      interface{}
-	)
-
-	counter := 0
-	headers = make(map[string]string)
-	for lineNo, content := range msgSlice {
-		// Read details from scheme (first line of HTTP request)
-		if lineNo == 0 {
-			scheme = content
-			schemeSlice := strings.Fields(scheme)
-			method = schemeSlice[0]
-			fullRoute = schemeSlice[1]
-			version = schemeSlice[2]
-			counter++
-			continue
-		}
-		// build headers
-		contentSlice := strings.Split(content, ": ")
-
-		// end loop after headers or if a header line cannot be split into a key value pair
-		if content == "\r\n" || len(contentSlice) != 2 {
-			break
-		}
-		headers[contentSlice[0]] = contentSlice[1]
-		counter += 1
-	}
-
-	// Extract route and query
-	fullRouteSlice := strings.Split(fullRoute, "?")
-	route = fullRouteSlice[0]
-	if len(fullRouteSlice) == 2 {
-		if len(route) > 1 {
-			route = strings.TrimRight(route, "/")
-		}
-		query = parseQueryToMap(fullRouteSlice[1])
-	}
-
-	// build body
-	body = strings.Join(msgSlice[counter+1:], "\r\n")
-
-	req := NewHTTPRequest()
-	req.Version = version
-	req.Route = route
-	req.Query = query
-	req.Method = method
-	req.Headers = headers
-	req.Body = body
-
-	return req
-}
-
-// Convert struct type HTTPResponse to raw HTTP response string
-func parseResStructToRaw(res *HTTPResponse) string {
-	response := parseResponseStatusLine(res) + "\r\n" + parseHeadersToString(res.Headers) + "\r\n" + parseBody(res) + "\r\n"
-	return response
-}
-
-// Convert map Headers to a string
-func parseHeadersToString(headers Headers) string {
-	var parsedHeaders string
-	for key, val := range headers {
-		parsedHeaders += key + ": " + val + "\r\n"
-	}
-	return parsedHeaders
-}
-
-// Builds the first line in the raw HTTP response (the status line)
-func parseResponseStatusLine(res *HTTPResponse) string {
-	resStatusLine := fmt.Sprint(res.Version) + " " + fmt.Sprint(res.StatusCode) + " " + HTTPStatusCodeMap[res.StatusCode]
-	return resStatusLine
-}
-
-// convert response body interface to string
-func parseBody(res *HTTPResponse) string {
-	body := fmt.Sprint(res.Body)
-	res.Headers["Content-Length"] = fmt.Sprint(len(body))
-	return body
-}
-
-// Stringify JSON
-func parseJsonToString(json map[string]string) string {
-	var j string = "\"{"
-
-	counter := 1
-	for key, val := range json {
-		if counter == len(json) {
-			j += fmt.Sprintf("\\\"%v\\\":\\\"%v\\\"", key, val)
-		} else {
-			j += fmt.Sprintf("\\\"%v\\\":\\\"%v\\\",", key, val)
-		}
-		counter++
-	}
-	j += "}\""
-	return j
-}
-
-// Convert query string from the full route to a key value map
-func parseQueryToMap(q string) Query {
-	qSlice := strings.Split(q, "&")
-	query := make(Query)
-	for _, qu := range qSlice {
-		quSlice := strings.Split(qu, "=")
-		key := quSlice[0]
-		val := ""
-		if len(quSlice) == 2 {
-			val = quSlice[1]
-		}
-		query[key] = val
-	}
-	return query
 }
