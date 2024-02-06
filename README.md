@@ -5,13 +5,17 @@ This repo contains an implementation of an HTTP web-server build from scratch (t
 
 ## Features
 - Request Logging
+- Middleware handling: handlers for middlewares can be registered for route groups
+- Router: Can scope functionalities like middlewares based on routes
 - Routing: can parse route tokens (params) and query params from raw HTTP requests
-- JSON parsing
+- JSON parsing: Can serialize response body (go structures) to stringified form for streaming over TCP and also deserialize request body to go structures
 - TCP Connection concurrency
 
 ## Example Usage
-Please check [here](./server/main.go) for a full example 
+Please check [here](./server/main.go) for a full example
+
 ```go
+// main.go
 package main
 
 import (
@@ -92,6 +96,14 @@ func handlePutFooRoute(req *server.HTTPRequest, res *server.HTTPResponse) interf
 	return 1
 }
 
+```
+
+## How to run
+
+```bash
+go mod init
+go mod tidy
+go run main.go
 ```
 
 # Author
