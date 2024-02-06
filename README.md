@@ -1,4 +1,5 @@
 # go-Express
+<img src="./assets/demo-pic.png" alt="demo-pic" />
 
 This repo contains an implementation of an HTTP web-server build from scratch (tcp) copying ExpressJS style. If comes with a TCP client that can send HTTP requests to the server
 
@@ -9,6 +10,7 @@ This repo contains an implementation of an HTTP web-server build from scratch (t
 - TCP Connection concurrency
 
 ## Example Usage
+Please check [here](./server/main.go) for a full example 
 ```go
 package main
 
@@ -92,5 +94,5 @@ func handlePutFooRoute(req *server.HTTPRequest, res *server.HTTPResponse) interf
 
 ```
 
-# Contact Author
+# Author
 de-marauder [twitter](https://x.com/De_marauder), [linkedin](https://linkedin.com/in/obiajulu-ezike)
