@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	// "go-express/server"
 	"github.com/de-marauder/go-express/server/server"
-	// "go-express/server/server"
 )
 
 const (
@@ -15,16 +13,28 @@ const (
 func main() {
 	s := server.NewHTTPServer()
 
+	// create new routers
+	r1 := server.NewRouter()
+	r2 := server.NewRouter()
+
 	// register handlers with param tokens and HTTP methods
-	s.Use(mid1)
+	s.Use(mid1) // attaches a global middleware
 	s.Get("/", middleware, handleRootRoute)
-	s.Get("/foo", middleware2, handleFooRoute)
-	s.Get("/foo/:id/bar/:id2", handleOneFooBarByIdRoute)
-	s.Use(mid2, mid3)
-	s.Get("/foo/:id/bar", handleOneFooBarRoute)
-	s.Get("/foo/:id", handleOneFooRoute)
-	s.Post("/foo", handlePostFooRoute)
-	s.Put("/foo", handlePutFooRoute)
+
+	// add router scoped handlers
+	r1.Get("/", middleware2, handleFooRoute)
+	r1.Get("/:id/bar/:id2", handleOneFooBarByIdRoute)
+
+	r2.Use(mid2, mid3) // attaches middlewares scoped to router structure
+	r2.Get("/:id/bar", handleOneFooBarRoute)
+	s.Use(middleware2)
+	r2.Get("/:id", handleOneFooRoute)
+	r2.Post("/", handlePostFooRoute)
+	r2.Put("/", handlePutFooRoute)
+
+	// register routers
+	s.UseRouter("/foo", r1)
+	s.UseRouter("/bar", r2)
 
 	s.Listen(host+":"+port, func() {
 		// Add some string outputs or

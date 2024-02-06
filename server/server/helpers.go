@@ -7,7 +7,7 @@ import (
 
 // Compares requested route with registered route to see if they match
 func performRoutePatternMatch(req *HTTPRequest, routeMapVal string, p Params) (string, bool) {
-	reqR := req.Route
+	reqR := strings.TrimRight(req.Route, "/")
 	method := strings.Split(routeMapVal, "-")[0]
 	r := strings.Split(routeMapVal, "-")[1]
 	if method != req.Method {
@@ -51,7 +51,7 @@ func setResHeaders(res *HTTPResponse) {
 	res.Headers = headers
 }
 
-// Convert HTTP request to a more usable sreuct form
+// Convert HTTP request to a more usable struct form
 // Struct type is HTTPRequest
 func parseReqToStruct(message string) *HTTPRequest {
 	msgSlice := strings.Split(message, "\r")
@@ -176,8 +176,8 @@ func parseQueryToMap(q string) Query {
 	return query
 }
 
-func concatenateAllHandlers(mp routeMapValue) []HTTPRequestHandler {
-	m := middlewares[:mp.midx]
+func concatenateAllHandlers(s *Server, mp routeMapValue) []HTTPRequestHandler {
+	m := s.middlewares[:mp.midx]
 	middlewareHandlers := make([][]HTTPRequestHandler, len(m))
 	copy(middlewareHandlers, m)
 	allHandlers := flatten2DSlice(append(middlewareHandlers, mp.handlers))

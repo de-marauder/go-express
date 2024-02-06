@@ -10,8 +10,6 @@ import (
 // max connection buffer size
 const buf_size = 1024
 
-var middlewares = [][]HTTPRequestHandler{}
-
 type NextFunction func()
 
 // Request handlers return an empty interface and require a pointer to request struct and pointer to response struct
@@ -28,24 +26,31 @@ type routeMapValue struct {
 
 // Define a structure for our server
 type Server struct {
-	protocol string
-	addr     string
-	listener net.Listener
-	routeMap routeMap
+	protocol    string
+	addr        string
+	listener    net.Listener
+	routeMap    routeMap
+	middlewares [][]HTTPRequestHandler
+	router      *router
 }
 
 // Create a constructor function for the Server
 func NewHTTPServer() *Server {
+	router := NewRouter()
+
 	return &Server{
-		protocol: "tcp",
-		addr:     "",
-		listener: nil,
-		routeMap: make(routeMap),
+		protocol:    "tcp",
+		addr:        "",
+		listener:    nil,
+		routeMap:    router.routeMap,
+		middlewares: router.middlewares,
+		router:      router,
 	}
 }
 
 type MiddlewareMethods interface {
 	Use(...HTTPRequestHandler)
+	UseRouter(string, router)
 }
 
 // An interface to implement methods for the server struct in an ExpresJs fashion
@@ -88,6 +93,7 @@ type statusMessage map[int]string
 var HTTPStatusCodeMap = statusMessage{
 	200: "OK",
 	201: "CREATED",
+	400: "BAD REQUEST",
 	401: "UNAUTHORIZED",
 	403: "FORBIDDEN",
 	404: "NOT FOUND",
@@ -139,54 +145,56 @@ func (s *Server) Listen(addr string, cb func()) {
 
 // HTTP Method handlers for registering routes and their corresponding handlers
 func (s *Server) Get(route string, handlers ...HTTPRequestHandler) {
-	midx := len(middlewares)
-
-	s.routeMap["GET-"+route] = routeMapValue{
-		method:   "GET",
-		midx:     midx,
-		handlers: handlers,
-	}
+	s.router.Get(route, handlers...)
 }
 func (s *Server) Post(route string, handlers ...HTTPRequestHandler) {
-	midx := len(middlewares)
-
-	s.routeMap["POST-"+route] = routeMapValue{
-		method:   "POST",
-		midx:     midx,
-		handlers: handlers,
-	}
+	s.router.Post(route, handlers...)
 }
 func (s *Server) Put(route string, handlers ...HTTPRequestHandler) {
-	midx := len(middlewares)
-
-	s.routeMap["PUT-"+route] = routeMapValue{
-		method:   "PUT",
-		midx:     midx,
-		handlers: handlers,
-	}
+	s.router.Put(route, handlers...)
 }
 func (s *Server) Patch(route string, handlers ...HTTPRequestHandler) {
-	midx := len(middlewares)
-
-	s.routeMap["PATCH-"+route] = routeMapValue{
-		method:   "PATCH",
-		midx:     midx,
-		handlers: handlers,
-	}
+	s.router.Patch(route, handlers...)
 }
 func (s *Server) Delete(route string, handlers ...HTTPRequestHandler) {
-	midx := len(middlewares)
-
-	s.routeMap["DELETE"+route] = routeMapValue{
-		method:   "DELETE",
-		midx:     midx,
-		handlers: handlers,
-	}
+	s.router.Delete(route, handlers...)
 }
 
 // register middleware that runs before calls it precedes
 func (s *Server) Use(middlewareHandlers ...HTTPRequestHandler) {
-	middlewares = append(middlewares, middlewareHandlers)
+	s.router.middlewares = append(s.router.middlewares, middlewareHandlers)
+	s.middlewares = s.router.middlewares
+}
+
+// Attaches routes defined by a router to the server
+func (s *Server) UseRouter(prefix string, router *router) {
+	// unpack router to obtain middlewares and route maps
+	// loop through route map and prefix route keys with `${prefix}`
+	// update middleware indexes on route map values by incremeting by `len(s.middlewares)`
+	// update server routeMap with all router route maps
+	// concatenate router middlewares to server middlewares
+
+	rmid := router.middlewares
+	rmap := router.routeMap
+
+	for key, value := range rmap {
+		keySl := strings.Split(key, "-")
+		method := keySl[0]
+		route := keySl[1]
+		// rewrite root routes to match only prefix
+		if route == "/" {
+			route = ""
+		}
+		newKey := method + "-" + prefix + route
+		s.routeMap[newKey] = routeMapValue{
+			midx:     value.midx + len(s.middlewares),
+			method:   value.method,
+			handlers: value.handlers,
+		}
+	}
+
+	s.middlewares = append(s.middlewares, rmid...)
+
 }
 
 // Start a new tcp server that listens on the specified address
@@ -259,9 +267,7 @@ func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 			res.Send(fmt.Sprintln("Path ", req.Method, req.Route, "Not Found"))
 		}
 	} else {
-		// rMap.handler(req, res)
-		// e := runHandlers(req, res, rMap.handlers)
-		allHandlers := concatenateAllHandlers(rMap)
+		allHandlers := concatenateAllHandlers(s, rMap)
 		e := runHandlers(req, res, allHandlers)
 		logError(e)
 	}
@@ -279,7 +285,7 @@ func (s *Server) tryExtractParams(req *HTTPRequest, res *HTTPResponse) bool {
 		} else {
 			req.Params = params
 			rMp := s.routeMap[req.Method+"-"+match]
-			allHandlers := concatenateAllHandlers(rMp)
+			allHandlers := concatenateAllHandlers(s, rMp)
 			e := runHandlers(req, res, allHandlers)
 			logError(e)
 			return true
