@@ -1,5 +1,5 @@
 # go-Express
-<img src="./assets/demo-pic.png" alt="demo-pic" />
+<img src="../../assets/demo-pic.png" alt="demo-pic" />
 
 This package contains an implementation of an HTTP web-server build from scratch (tcp) copying ExpressJS style.
 
