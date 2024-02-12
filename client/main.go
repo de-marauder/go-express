@@ -7,7 +7,6 @@ import (
 	"net"
 )
 
-
 const (
 	net_protocol = "tcp"
 	host         = "localhost"
@@ -19,7 +18,7 @@ const (
 type Client struct {
 	protocol string
 	addr     string
-	conn net.Conn
+	conn     net.Conn
 }
 
 func NewClient(protocol string, address string) *Client {
@@ -27,8 +26,8 @@ func NewClient(protocol string, address string) *Client {
 	logError(err)
 	return &Client{
 		protocol: protocol,
-		addr: address,
-		conn: conn,
+		addr:     address,
+		conn:     conn,
 	}
 }
 
@@ -44,6 +43,16 @@ func handleConnection(conn net.Conn) {
 	defer conn.Close()
 	fmt.Printf("Client server running on %s\n", conn.LocalAddr())
 
+// 	req := fmt.Sprintf(`
+// GET / HTTP/1.1
+// Host: localhost:7000
+// User-Agent: curl/7.81.0
+// Accept: */*
+
+
+// `)
+
+	// io.WriteString(conn, req)
 	io.WriteString(conn, "Opening connection to server")
 
 	buffer := make([]byte, buf_size)

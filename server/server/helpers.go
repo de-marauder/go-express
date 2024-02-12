@@ -3,6 +3,8 @@ package server
 import (
 	"fmt"
 	"strings"
+
+	json "github.com/de-marauder/gojson/gojson"
 )
 
 // Compares requested route with registered route to see if they match
@@ -64,7 +66,7 @@ func parseReqToStruct(message string) *HTTPRequest {
 		method    string
 		version   string
 		headers   Headers
-		body      interface{}
+		body      string
 	)
 
 	counter := 0
@@ -110,7 +112,7 @@ func parseReqToStruct(message string) *HTTPRequest {
 	req.Query = query
 	req.Method = method
 	req.Headers = headers
-	req.Body = body
+	req.Body = json.MustParse(body)
 
 	return req
 }
