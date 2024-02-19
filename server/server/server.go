@@ -113,8 +113,10 @@ type HTTPResponseInterface interface {
 	Send(map[string]string)
 }
 
-func NewHTTPResponse() *HTTPResponse {
+func NewHTTPResponse(conn net.Conn) *HTTPResponse {
 	r := &HTTPResponse{
+		Version: "HTTP/1.1",
+		conn: conn,
 		Headers: nil,
 		Body:    nil,
 	}
@@ -129,7 +131,9 @@ func (res *HTTPResponse) Json(json map[string]string) {
 }
 
 func (res *HTTPResponse) Send(body string) {
-	res.Body = body
+	if body != "" {
+		res.Body = body
+	}
 	response := parseResStructToRaw(res)
 	_, err := res.conn.Write([]byte(response))
 	logError(err)
@@ -249,13 +253,19 @@ func isHTTPRequest(message string) bool {
 }
 
 // Parse and process request and provide response to client via connection
-func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
+func (s *Server) handleHTTPRequest(conn net.Conn, message string) error {
+	defer func () {
+		if r := recover(); r != nil {
+			// println("defer - recover => ", r)
+			InternalServerError(conn)
+		}
+	}()
 	// fmt.Println("--Request--")
 	// fmt.Println(message)
 	req := parseReqToStruct(message)
-	res := NewHTTPResponse()
-	res.Version = req.Version
-	res.conn = conn
+	res := NewHTTPResponse(conn)
+	
+
 	log.Println("Connection from ", conn.RemoteAddr(), "-", req.Method, "-", req.Route)
 
 	rMap, ok := s.routeMap[req.Method+"-"+req.Route]
@@ -271,6 +281,7 @@ func (s *Server) handleHTTPRequest(conn net.Conn, message string) {
 		e := runHandlers(req, res, allHandlers)
 		logError(e)
 	}
+	return nil
 }
 
 // Handle param extraction when registered route elements are tokenized for dynamism
